@@ -1,3 +1,9 @@
 {
-  "framework": "nextjs"
+  "redirects": [
+    {
+      "source": "/.well-known/farcaster.json",
+      "destination": "https://api.farcaster.xyz/miniapps/hosted-manifest/0f9a4cbc-009d-412e-ead7-5175948f9c4d",
+      "statusCode": 307
+    }
+  ]
 }
