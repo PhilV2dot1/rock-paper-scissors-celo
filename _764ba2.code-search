@@ -1,0 +1,16 @@
+# Query: #764ba2
+
+4 results - 4 files
+
+pages\_app.tsx:
+  187:             accentColor: '#764ba2',
+
+pages\game.tsx:
+  462:         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+
+pages\api\image\[type].tsx:
+  29:               backgroundImage: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+
+public\.
+well-known\farcaster.json:
+  15:     "splashBackgroundColor": "#764ba2"
