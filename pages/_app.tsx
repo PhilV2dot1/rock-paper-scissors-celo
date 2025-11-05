@@ -3,7 +3,7 @@ import { WagmiProvider, createConfig, http, createConnector } from 'wagmi';
 import { celo } from 'wagmi/chains';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
-import { injected, walletConnect } from 'wagmi/connectors';
+import { injected } from 'wagmi/connectors';
 import '@rainbow-me/rainbowkit/styles.css';
 
 // Farcaster wallet connector using Mini App SDK
@@ -168,12 +168,9 @@ const config = createConfig({
     [celo.id]: http(),
   },
   connectors: [
-    farcasterConnector, // Farcaster wallet first - highest priority
-    injected(),
-    walletConnect({
-      projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID',
-    }),
-  ],
+  farcasterConnector,
+  injected(),
+],
 });
 
 const queryClient = new QueryClient();
