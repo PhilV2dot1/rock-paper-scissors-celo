@@ -1,6 +1,6 @@
+import { useEffect, useState } from 'react';
 import sdk from '@farcaster/frame-sdk';
 import { useConnect, useDisconnect } from 'wagmi';
-import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
@@ -56,6 +56,7 @@ const CONTRACT_ABI = [
 ] as const;
 
 export default function Game() {
+  const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [mode, setMode] = useState<'free' | 'onchain'>('free');
   const [choice, setChoice] = useState<number | null>(null);
   const [result, setResult] = useState('');
@@ -65,11 +66,38 @@ export default function Game() {
   const [showNameInput, setShowNameInput] = useState(false);
   const [isInFrame, setIsInFrame] = useState(false);
   const [farcasterUser, setFarcasterUser] = useState<any>(null);
-  // Optimistic stats for instant UI updates
   const [optimisticStats, setOptimisticStats] = useState<{ wins: number; losses: number; ties: number } | null>(null);
-  const { address, isConnected } = useAccount();
+  
+  const { address, isConnected, connector: activeConnector } = useAccount();
   const { writeContract, data: hash, isPending } = useWriteContract();
   const queryClient = useQueryClient();
+  const { connect, connectors } = useConnect();
+  const { disconnect } = useDisconnect();
+
+  // Initialiser le SDK Farcaster
+  useEffect(() => {
+    const initSDK = async () => {
+      try {
+        if (typeof window !== 'undefined') {
+          const isInFarcasterFrame = window.parent !== window;
+          
+          if (isInFarcasterFrame) {
+            console.log('Initializing Farcaster SDK...');
+            await sdk.actions.ready();
+            console.log('Farcaster SDK ready ✓');
+          } else {
+            console.log('Not in Farcaster frame, skipping SDK init');
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing Farcaster SDK:', error);
+      } finally {
+        setIsSDKLoaded(true);
+      }
+    };
+
+    initSDK();
+  }, []);
 
   // Check if player exists
   const { data: playerData, refetch: refetchPlayer } = useReadContract({
@@ -79,14 +107,13 @@ export default function Game() {
     args: address ? [address] : undefined,
     query: { 
       enabled: isConnected && !!address,
-      refetchInterval: false, // Don't auto-poll, we'll refetch manually
+      refetchInterval: false,
     }
   });
 
-  // Check if player exists (boolean)
   const playerExists = playerData && (playerData as any)[6] === true;
 
-  // Get on-chain stats - optimized for speed
+  // Get on-chain stats
   const { data: onchainStats, refetch: refetchStats, isLoading: isLoadingStats, isFetching: isFetchingStats } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: CONTRACT_ABI,
@@ -94,36 +121,15 @@ export default function Game() {
     query: { 
       enabled: isConnected && !!address && playerExists,
       refetchInterval: false,
-      staleTime: 0, // Always refetch when requested
-      gcTime: 5000, // Keep in cache for 5 seconds
+      staleTime: 0,
+      gcTime: 5000,
     }
   });
 
-  // Refetch stats when playerData changes - but only if not already optimistic
-  useEffect(() => {
-    if (playerExists && isConnected && address && !optimisticStats) {
-      refetchStats();
-    }
-  }, [playerExists, isConnected, address, refetchStats, optimisticStats]);
-
-  // Refetch when address changes (new wallet connected)
-  useEffect(() => {
-    if (isConnected && address && playerExists) {
-      setOptimisticStats(null); // Clear optimistic on address change
-      refetchPlayer();
-      refetchStats();
-    }
-  }, [address, isConnected, playerExists, refetchPlayer, refetchStats]);
-
-  // Wait for transaction receipt - only 1 confirmation for faster updates
   const { isSuccess, data: receipt, isLoading: isWaiting } = useWaitForTransactionReceipt({ 
     hash,
-    confirmations: 1, // Reduced to 1 for faster response
+    confirmations: 1,
   });
-  
-  const { connect, connectors } = useConnect();
-  const { disconnect } = useDisconnect();
-  const { connector: activeConnector } = useAccount();
 
   // Initialize Farcaster SDK and force Farcaster wallet connection when in frame
   useEffect(() => {
@@ -133,11 +139,9 @@ export default function Game() {
       
       if (isInFarcaster) {
         try {
-          // Initialize Farcaster SDK context
           const context = await sdk.context;
           setFarcasterUser(context.user);
           
-          // Find Farcaster wallet connector
           const farcasterConnector = connectors.find(c => c.id === 'farcaster');
           
           if (!farcasterConnector) {
@@ -146,11 +150,9 @@ export default function Game() {
             return;
           }
 
-          // Check if already connected to Farcaster wallet
           const isFarcasterConnected = isConnected && activeConnector?.id === 'farcaster';
           
           if (!isFarcasterConnected) {
-            // Disconnect from any other wallet (like MetaMask) first
             if (isConnected && activeConnector && activeConnector.id !== 'farcaster') {
               console.log('Disconnecting from', activeConnector.name, 'to use Farcaster wallet');
               try {
@@ -160,23 +162,19 @@ export default function Game() {
               }
             }
             
-            // Connect to Farcaster wallet
             try {
               await connect({ connector: farcasterConnector });
               console.log('✅ Connected to Farcaster wallet');
             } catch (connectError: any) {
               console.error('Farcaster wallet connection error:', connectError);
-              // Don't block the app if connection fails
             }
           } else {
             console.log('Already connected to Farcaster wallet');
           }
           
-          // Mark frame as ready
           sdk.actions.ready();
         } catch (error) {
           console.error('Farcaster SDK initialization error:', error);
-          // Call ready anyway to not block the frame
           try {
             sdk.actions.ready();
           } catch (readyError) {
@@ -189,13 +187,24 @@ export default function Game() {
     initFarcaster();
   }, [connectors, connect, disconnect, isConnected, activeConnector]);
 
+  useEffect(() => {
+    if (playerExists && isConnected && address && !optimisticStats) {
+      refetchStats();
+    }
+  }, [playerExists, isConnected, address, refetchStats, optimisticStats]);
+
+  useEffect(() => {
+    if (isConnected && address && playerExists) {
+      setOptimisticStats(null);
+      refetchPlayer();
+      refetchStats();
+    }
+  }, [address, isConnected, playerExists, refetchPlayer, refetchStats]);
 
   useEffect(() => {
     if (isSuccess && hash && receipt) {
-      // Transaction confirmed - update stats quickly
       const updateStats = async () => {
         try {
-          // Immediately invalidate and refetch - no delays
           queryClient.invalidateQueries({
             predicate: (query) => {
               const queryKey = query.queryKey as any[];
@@ -208,13 +217,11 @@ export default function Game() {
             }
           });
           
-          // Refetch in parallel for speed
           const [playerResult, statsResult] = await Promise.all([
             refetchPlayer(),
             refetchStats()
           ]);
           
-          // Verify we got valid stats before clearing optimistic
           const statsData = statsResult?.data;
           if (statsData) {
             const wins = getStatsValue(statsData, 1, 0);
@@ -224,10 +231,7 @@ export default function Game() {
             console.log('Stats from blockchain:', { wins, losses, ties });
             console.log('Current optimistic stats:', optimisticStats);
             
-            // Only clear optimistic if we have valid stats data that matches or exceeds optimistic
-            // This ensures the counter doesn't jump backwards
             if (wins >= 0 && losses >= 0 && ties >= 0) {
-              // If blockchain stats match or exceed optimistic, we can clear it
               if (!optimisticStats || 
                   (wins >= optimisticStats.wins && 
                    losses >= optimisticStats.losses && 
@@ -248,13 +252,11 @@ export default function Game() {
           setShowResult(true);
         } catch (error) {
           console.error('Error refetching stats:', error);
-          // Don't clear optimistic on error - keep showing optimistic update
           setResult('✅ Transaction confirmed! (Stats updating...)');
           setShowResult(true);
         }
       };
       
-      // Start update immediately, no delay
       updateStats();
     }
   }, [isSuccess, hash, receipt, refetchPlayer, refetchStats, queryClient]);
@@ -303,11 +305,9 @@ export default function Game() {
     try {
       setChoice(playerChoice);
       
-      // Generate computer choice client-side for immediate result display
       const computerChoice = Math.floor(Math.random() * 3);
       const choices = ['🪨 Rock', '📄 Paper', '✂️ Scissors'];
       
-      // Determine outcome optimistically (client-side prediction)
       let outcome: 'win' | 'lose' | 'tie' = 'tie';
       if (playerChoice === computerChoice) {
         outcome = 'tie';
@@ -321,12 +321,10 @@ export default function Game() {
         outcome = 'lose';
       }
       
-      // Show immediate optimistic result
       const outcomeText = outcome === 'win' ? '🎉 You Win!' : outcome === 'lose' ? '😞 You Lose' : '🤝 Tie!';
       setResult(`${choices[playerChoice]} vs ${choices[computerChoice]} • ${outcomeText} (⏳ Confirming...)`);
       setShowResult(true);
       
-      // Update optimistic stats immediately for instant UI feedback
       const currentWins = getStatsValue(onchainStats, 1, 0);
       const currentLosses = getStatsValue(onchainStats, 2, 0);
       const currentTies = getStatsValue(onchainStats, 3, 0);
@@ -339,7 +337,6 @@ export default function Game() {
         setOptimisticStats({ wins: currentWins, losses: currentLosses, ties: currentTies + 1 });
       }
       
-      // Send transaction in background (non-blocking)
       writeContract({
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
@@ -349,7 +346,7 @@ export default function Game() {
 
     } catch (error) {
       console.error(error);
-      setOptimisticStats(null); // Clear optimistic on error
+      setOptimisticStats(null);
       setResult('❌ Transaction failed');
       setShowResult(true);
     }
@@ -362,12 +359,12 @@ export default function Game() {
     }
 
     try {
-    writeContract({
-  address: CONTRACT_ADDRESS,
-  abi: CONTRACT_ABI,
-  functionName: 'creerProfil',
-  args: [playerName],
-} as any);
+      writeContract({
+        address: CONTRACT_ADDRESS,
+        abi: CONTRACT_ABI,
+        functionName: 'creerProfil',
+        args: [playerName],
+      } as any);
       setShowNameInput(false);
     } catch (error) {
       console.error(error);
@@ -381,49 +378,38 @@ export default function Game() {
     setShowResult(false);
   };
 
-  // Calculate current score - handle both array and tuple formats from Wagmi
-  // Wagmi can return either an array or object depending on ABI format
   const getStatsValue = (stats: any, index: number, fallback = 0): number => {
     if (!stats) return fallback;
     
-    // If it's an array-like object (tuple from contract)
     if (Array.isArray(stats)) {
       return Number(stats[index] || fallback);
     }
     
-    // If it's an object with named properties
     if (typeof stats === 'object') {
-      // Try common property names or indexed access
       const keys = Object.keys(stats);
       if (keys.length > index) {
         return Number(stats[keys[index]] || fallback);
       }
-      // Try direct index access
       return Number(stats[index] || fallback);
     }
     
     return fallback;
   };
 
-  // Use optimistic stats if available, otherwise use on-chain stats
-  // Always prefer optimistic for instant feedback until blockchain confirms
   const currentScore = mode === 'free' 
     ? freeScore 
     : (optimisticStats ? optimisticStats : {
-        wins: getStatsValue(onchainStats, 1, 0),  // victoires
-        losses: getStatsValue(onchainStats, 2, 0), // defaites
-        ties: getStatsValue(onchainStats, 3, 0)    // egalites
+        wins: getStatsValue(onchainStats, 1, 0),
+        losses: getStatsValue(onchainStats, 2, 0),
+        ties: getStatsValue(onchainStats, 3, 0)
       });
   
-  // Keep optimistic stats until real stats catch up or exceed
   useEffect(() => {
     if (optimisticStats && onchainStats && !isFetchingStats) {
       const realWins = getStatsValue(onchainStats, 1, 0);
       const realLosses = getStatsValue(onchainStats, 2, 0);
       const realTies = getStatsValue(onchainStats, 3, 0);
       
-      // Clear optimistic when blockchain stats match or exceed optimistic
-      // This ensures the counter never goes backwards
       const blockchainCaughtUp = 
         realWins >= optimisticStats.wins &&
         realLosses >= optimisticStats.losses &&
@@ -439,7 +425,6 @@ export default function Game() {
     }
   }, [optimisticStats, onchainStats, isFetchingStats]);
   
-  // Debug log to see what we're getting
   useEffect(() => {
     if (mode === 'onchain') {
       console.log('On-chain stats raw:', onchainStats);
@@ -450,6 +435,25 @@ export default function Game() {
     }
   }, [mode, onchainStats, currentScore, playerExists, isConnected, address]);
 
+  // Afficher un loader pendant l'initialisation
+  if (!isSDKLoaded) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        background: 'linear-gradient(135deg, #FCFF52 0%, #35D07F 100%)',
+        color: '#000',
+        fontFamily: 'Arial, sans-serif'
+      }}>
+        <div style={{ fontSize: '48px', marginBottom: '20px' }}>🎮</div>
+        <p style={{ fontSize: '20px', fontWeight: 'bold' }}>Loading Rock Paper Scissors...</p>
+      </div>
+    );
+  }
+
   return (
     <>
       <Head>
@@ -459,7 +463,7 @@ export default function Game() {
 
       <div style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #FCFF52 100%)',
+        background: 'linear-gradient(135deg, #FCFF52 0%, #35D07F 100%)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -470,7 +474,6 @@ export default function Game() {
         overflow: 'hidden'
       }}>
         
-        {/* Decorative elements */}
         <div style={{
           position: 'absolute',
           top: '-50px',
@@ -482,7 +485,6 @@ export default function Game() {
           filter: 'blur(40px)'
         }} />
 
-        {/* Header */}
         <div style={{ textAlign: 'center', width: '100%', maxWidth: '500px', zIndex: 1 }}>
           <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>🎮</div>
           <h1 style={{ fontSize: '1.8rem', marginBottom: '0.5rem', fontWeight: '700' }}>
@@ -490,16 +492,17 @@ export default function Game() {
           </h1>
           <p style={{ fontSize: '0.9rem', opacity: 0.9 }}>On-Chain Game • Celo Network</p>
         </div>
-{farcasterUser && (
-  <div style={{ 
-    fontSize: '0.9rem', 
-    opacity: 0.9,
-    marginTop: '0.5rem'
-  }}>
-    Welcome @{farcasterUser.username} !
-  </div>
-)}
-        {/* Mode Selector */}
+
+        {farcasterUser && (
+          <div style={{ 
+            fontSize: '0.9rem', 
+            opacity: 0.9,
+            marginTop: '0.5rem'
+          }}>
+            Welcome @{farcasterUser.username} !
+          </div>
+        )}
+
         <div style={{
           display: 'flex',
           gap: '0.5rem',
@@ -544,15 +547,12 @@ export default function Game() {
           </button>
         </div>
 
-        {/* Connect Wallet (On-Chain mode) */}
-      
         {mode === 'onchain' && !isInFrame && (
           <div style={{ marginTop: '1rem', zIndex: 1 }}>
             <ConnectButton />
           </div>
         )}
 
-        {/* Farcaster Wallet Connect Button (when in frame) */}
         {mode === 'onchain' && isInFrame && !isConnected && (
           <div style={{ marginTop: '1rem', zIndex: 1 }}>
             <button
@@ -621,7 +621,6 @@ export default function Game() {
           </div>
         )}
 
-        {/* Connected Status (when in frame and connected) */}
         {mode === 'onchain' && isInFrame && isConnected && activeConnector?.id === 'farcaster' && (
           <div style={{ 
             marginTop: '1rem', 
@@ -635,7 +634,7 @@ export default function Game() {
             alignItems: 'center',
             gap: '0.5rem',
             justifyContent: 'center'
-  }}>
+          }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="#10b981"/>
             </svg>
@@ -643,7 +642,6 @@ export default function Game() {
           </div>
         )}
 
-        {/* Wrong wallet connected warning */}
         {mode === 'onchain' && isInFrame && isConnected && activeConnector?.id !== 'farcaster' && (
           <div style={{ 
             marginTop: '1rem', 
@@ -659,7 +657,6 @@ export default function Game() {
           </div>
         )}
 
-        {/* Score Board */}
         <div style={{
           display: 'flex',
           gap: '0.8rem',
@@ -713,7 +710,6 @@ export default function Game() {
           </div>
         </div>
 
-        {/* On-Chain Stats */}
         {mode === 'onchain' && playerExists && (
           <div style={{
             marginTop: '1rem',
@@ -774,7 +770,6 @@ export default function Game() {
           </div>
         )}
 
-        {/* Create Profile Modal */}
         {showNameInput && (
           <div style={{
             position: 'fixed',
@@ -817,8 +812,8 @@ export default function Game() {
                   style={{
                     flex: 1,
                     padding: '0.8rem',
-                    backgroundColor: '#667eea',
-                    color: 'white',
+                    backgroundColor: '#FCFF52',
+                    color: '#000',
                     border: 'none',
                     borderRadius: '10px',
                     fontWeight: '600',
@@ -847,7 +842,6 @@ export default function Game() {
           </div>
         )}
 
-        {/* Game Buttons */}
         <div style={{ textAlign: 'center', width: '100%', maxWidth: '500px', zIndex: 1, marginTop: '2rem' }}>
           <h2 style={{ fontSize: '1.3rem', marginBottom: '1.5rem', fontWeight: '600' }}>
             Choose Your Move
@@ -889,7 +883,6 @@ export default function Game() {
             ))}
           </div>
 
-          {/* Result */}
           {showResult && result && (
             <div style={{
               backgroundColor: 'rgba(255,255,255,0.95)',
@@ -906,7 +899,6 @@ export default function Game() {
           )}
         </div>
 
-        {/* Footer */}
         <div style={{ textAlign: 'center', width: '100%', zIndex: 1, marginTop: 'auto', paddingTop: '2rem' }}>
           {mode === 'free' && (
             <button

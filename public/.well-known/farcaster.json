@@ -9,7 +9,7 @@
     "name": "rock-paper-scissors-celo",
     "iconUrl": "https://rock-paper-scissors-celo.vercel.app/icon.png",
     "homeUrl": "https://rock-paper-scissors-celo.vercel.app/game",
-    "imageUrl": "https://rock-paper-scissors-celo.vercel.app/splash.pbg",
+    "imageUrl": "https://rock-paper-scissors-celo.vercel.app/splash.png",
     "buttonTitle": "Play",
     "splashImageUrl": "https://rock-paper-scissors-celo.vercel.app/splash-screen.png",
     "splashBackgroundColor": "#FCFF52"
