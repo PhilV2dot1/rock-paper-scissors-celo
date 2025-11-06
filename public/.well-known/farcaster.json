@@ -1,9 +1,9 @@
 {
-  "accountAssociation": {
+   "accountAssociation": {
     "header": "eyJmaWQiOjQ5MTM1MCwidHlwZSI6ImF1dGgiLCJrZXkiOiIweGYxOTM1NmFEQmZiMjcwZDc5MmIwZkExMjBlNzQ0RTQ3OTI2QTA2ZDAifQ",
     "payload": "eyJkb21haW4iOiJyb2NrLXBhcGVyLXNjaXNzb3JzLWNlbG8udmVyY2VsLmFwcCJ9",
     "signature": "GFaOSc3YA2P7XCmSoywcH0UVnoXLCWG3+VChluGv6hdzDyEnAPh2QW0nEnkunJTktJT5aqBL14h9SOQrIs5M6Rw="
-},
+  },
   "frame": {
     "version": "1",
     "name": "rock-paper-scissors-celo",
