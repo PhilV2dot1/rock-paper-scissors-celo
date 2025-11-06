@@ -1,77 +1,79 @@
 import Head from 'next/head';
 
-const baseUrl = process.env.VERCEL_URL 
-  ? `https://${process.env.VERCEL_URL}` 
-  : 'http://localhost:3000';
-
 export default function Home() {
   return (
     <>
       <Head>
-        {/* Métadonnées Frame essentielles */}
-        <meta property="fc:frame" content="vNext" />
-        <meta property="fc:frame:image" content={`${baseUrl}/api/image/start`} />
-        <meta property="fc:frame:image:aspect_ratio" content="1.91:1" />
+        {/* Open Graph pour Warpcast */}
+        <meta property="og:title" content="Rock Paper Scissors - Celo" />
+        <meta property="og:description" content="Play Rock Paper Scissors on-chain on Celo!" />
+        <meta property="og:image" content="https://rock-paper-scissors-celo.vercel.app/splash.png" />
+        <meta property="og:url" content="https://rock-paper-scissors-celo.vercel.app" />
+        <meta property="og:type" content="website" />
         
-        {/* Boutons avec action explicite */}
-        <meta property="fc:frame:button:1" content="🪨 Rock" />
-        <meta property="fc:frame:button:1:action" content="post" />
+        {/* Twitter Card */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Rock Paper Scissors - Celo" />
+        <meta name="twitter:description" content="Play Rock Paper Scissors on-chain on Celo!" />
+        <meta name="twitter:image" content="https://rock-paper-scissors-celo.vercel.app/splash.png" />
         
-        <meta property="fc:frame:button:2" content="📄 Paper" />
-        <meta property="fc:frame:button:2:action" content="post" />
-
-        <meta property="fc:frame:button:3" content="✂️ Scissors" />
-        <meta property="fc:frame:button:3:action" content="post" />
-        
-        <meta property="fc:frame:button:4" content="📊 Stats" />
-        <meta property="fc:frame:button:4:action" content="post" />
-        
-        <meta property="fc:frame:post_url" content={`${baseUrl}/api/play`} />
-        
-        {/* Open Graph */}
-        <meta property="og:title" content="rock-paper-scissors On-Chain" />
-        <meta property="og:description" content="play Rock-paper-scissors on-chain on Farcaster !" />
-        <meta property="og:image" content={`${baseUrl}/api/image/start`} />
-        
-        <title>rock-paper-scissors - Farcaster Frame</title>
-        <meta name="description" content="play rock-paper-scissors on-chain on Farcaster !" />
+        <title>Rock Paper Scissors - Celo</title>
+        <meta name="description" content="Play Rock Paper Scissors on-chain on Celo!" />
       </Head>
       
       <main style={{ padding: '2rem', fontFamily: 'Arial, sans-serif', maxWidth: '800px', margin: '0 auto' }}>
-        <h1>🎮 rock-paper-scissors On-Chain</h1>
-        <p>Jouez directement depuis Farcaster et suivez vos statistiques sur la blockchain !</p>
+        <h1>🎮 Rock Paper Scissors On-Chain</h1>
+        <p>Play directly from Farcaster and track your stats on the Celo blockchain!</p>
         
-        <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
-          <h2>Comment jouer :</h2>
+        <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#FCFF52', borderRadius: '8px' }}>
+          <h2>How to play:</h2>
           <ol>
-            <li>Partagez cette URL dans un cast sur Farcaster</li>
-            <li>Cliquez sur Pierre, Papier ou Ciseaux</li>
-            <li>Le contrat génère le choix de l&apos;ordinateur</li>
-            <li>Consultez vos stats et votre classement</li>
+            <li>Share this URL in a Farcaster cast</li>
+            <li>Click on Rock, Paper or Scissors</li>
+            <li>The smart contract generates the computer&apos;s choice</li>
+            <li>Check your stats and ranking</li>
           </ol>
         </div>
 
-        <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#e3f2fd', borderRadius: '8px' }}>
-          <h2>Fonctionnalités :</h2>
+        <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#35D07F', borderRadius: '8px', color: 'white' }}>
+          <h2>Features:</h2>
           <ul>
-            <li>✅ Statistiques complètes on-chain</li>
-            <li>🔥 Système de séries de victoires</li>
-            <li>🏆 Classement global des meilleurs joueurs</li>
-            <li>📈 Analyse de vos choix favoris</li>
-            <li>🎯 Événements spéciaux tous les 10 victoires</li>
+            <li>✅ Complete on-chain statistics</li>
+            <li>🔥 Win streak system</li>
+            <li>🏆 Global leaderboard</li>
+            <li>📈 Analyze your favorite moves</li>
+            <li>🎯 Special events every 10 wins</li>
           </ul>
         </div>
 
         <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#fff3e0', borderRadius: '8px' }}>
-          <h2>⚙️ Contrat :</h2>
-          <p>Celo Mainnet : <code>0xDeDb830D70cE3f687cad36847Ef5b9b96823A9b0</code></p>
+          <h2>⚙️ Smart Contract:</h2>
+          <p>Celo Mainnet: <code>0xDeDb830D70cE3f687cad36847Ef5b9b96823A9b0</code></p>
           <a 
             href="https://celoscan.io/address/0xDeDb830D70cE3f687cad36847Ef5b9b96823A9b0" 
             target="_blank" 
             rel="noopener noreferrer"
             style={{ color: '#1976d2' }}
           >
-            Voir sur CeloScan →
+            View on CeloScan →
+          </a>
+        </div>
+
+        <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+          <a 
+            href="/game" 
+            style={{
+              display: 'inline-block',
+              padding: '1rem 2rem',
+              backgroundColor: '#FCFF52',
+              color: '#000',
+              textDecoration: 'none',
+              borderRadius: '10px',
+              fontWeight: 'bold',
+              fontSize: '1.2rem'
+            }}
+          >
+            🎮 Play Now
           </a>
         </div>
       </main>
