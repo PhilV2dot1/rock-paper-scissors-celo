@@ -6,6 +6,13 @@ import { useAccount, useReadContract, useWriteContract, useWaitForTransactionRec
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useQueryClient } from '@tanstack/react-query';
 
+// Déclaration TypeScript pour window.ethereum
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
+
 const CONTRACT_ADDRESS = '0xDeDb830D70cE3f687cad36847Ef5b9b96823A9b0' as `0x${string}`;
 const CONTRACT_ABI = [
   {
@@ -54,6 +61,54 @@ const CONTRACT_ABI = [
     type: 'function',
   },
 ] as const;
+
+// Fonction helper pour forcer le switch vers Celo
+const switchToCelo = async (): Promise<boolean> => {
+  if (!window.ethereum) {
+    console.error('No ethereum provider found');
+    return false;
+  }
+
+  try {
+    // Tenter de switch vers Celo (chainId: 42220 = 0xa4ec)
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: '0xa4ec' }],
+    });
+    console.log('✅ Switched to Celo network');
+    return true;
+  } catch (switchError: any) {
+    // Si Celo n'est pas dans le wallet (erreur 4902), l'ajouter
+    if (switchError.code === 4902) {
+      try {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [
+            {
+              chainId: '0xa4ec',
+              chainName: 'Celo Mainnet',
+              nativeCurrency: {
+                name: 'CELO',
+                symbol: 'CELO',
+                decimals: 18,
+              },
+              rpcUrls: ['https://forno.celo.org'],
+              blockExplorerUrls: ['https://celoscan.io/'],
+            },
+          ],
+        });
+        console.log('✅ Added and switched to Celo network');
+        return true;
+      } catch (addError) {
+        console.error('Error adding Celo network:', addError);
+        return false;
+      }
+    } else {
+      console.error('Error switching to Celo:', switchError);
+      return false;
+    }
+  }
+};
 
 export default function Game() {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
@@ -228,24 +283,14 @@ export default function Game() {
             const losses = getStatsValue(statsData, 2, 0);
             const ties = getStatsValue(statsData, 3, 0);
             
-            console.log('Stats from blockchain:', { wins, losses, ties });
-            console.log('Current optimistic stats:', optimisticStats);
-            
             if (wins >= 0 && losses >= 0 && ties >= 0) {
               if (!optimisticStats || 
                   (wins >= optimisticStats.wins && 
                    losses >= optimisticStats.losses && 
                    ties >= optimisticStats.ties)) {
                 setOptimisticStats(null);
-                console.log('Cleared optimistic stats, using blockchain stats');
-              } else {
-                console.log('Blockchain stats not yet updated, keeping optimistic');
               }
-            } else {
-              console.warn('Invalid stats received, keeping optimistic update');
             }
-          } else {
-            console.warn('No stats data received from refetch');
           }
           
           setResult('✅ Transaction confirmed!');
@@ -259,7 +304,7 @@ export default function Game() {
       
       updateStats();
     }
-  }, [isSuccess, hash, receipt, refetchPlayer, refetchStats, queryClient]);
+  }, [isSuccess, hash, receipt, refetchPlayer, refetchStats, queryClient, optimisticStats]);
 
   const playFree = (playerChoice: number) => {
     setChoice(playerChoice);
@@ -303,6 +348,14 @@ export default function Game() {
     }
 
     try {
+      // Forcer le switch vers Celo avant la transaction
+      const switched = await switchToCelo();
+      if (!switched) {
+        setResult('❌ Please switch to Celo network');
+        setShowResult(true);
+        return;
+      }
+
       setChoice(playerChoice);
       
       const computerChoice = Math.floor(Math.random() * 3);
@@ -359,6 +412,15 @@ export default function Game() {
     }
 
     try {
+      // Forcer le switch vers Celo avant la transaction
+      const switched = await switchToCelo();
+      if (!switched) {
+        setResult('❌ Please switch to Celo network');
+        setShowResult(true);
+        setShowNameInput(false);
+        return;
+      }
+
       writeContract({
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
@@ -368,6 +430,8 @@ export default function Game() {
       setShowNameInput(false);
     } catch (error) {
       console.error(error);
+      setResult('❌ Failed to create profile');
+      setShowResult(true);
     }
   };
 
@@ -416,24 +480,10 @@ export default function Game() {
         realTies >= optimisticStats.ties;
       
       if (blockchainCaughtUp) {
-        console.log('Blockchain stats caught up, clearing optimistic:', {
-          optimistic: optimisticStats,
-          blockchain: { wins: realWins, losses: realLosses, ties: realTies }
-        });
         setOptimisticStats(null);
       }
     }
   }, [optimisticStats, onchainStats, isFetchingStats]);
-  
-  useEffect(() => {
-    if (mode === 'onchain') {
-      console.log('On-chain stats raw:', onchainStats);
-      console.log('Player exists:', playerExists);
-      console.log('Is connected:', isConnected);
-      console.log('Address:', address);
-      console.log('Calculated score:', currentScore);
-    }
-  }, [mode, onchainStats, currentScore, playerExists, isConnected, address]);
 
   // Afficher un loader pendant l'initialisation
   if (!isSDKLoaded) {
@@ -588,33 +638,9 @@ export default function Game() {
                 boxShadow: '0 4px 15px rgba(139, 92, 246, 0.3)',
                 opacity: isPending ? 0.6 : 1,
               }}
-              onMouseEnter={(e) => {
-                if (!isPending) {
-                  e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.4)';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(139, 92, 246, 0.4)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isPending) {
-                  e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.3)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(139, 92, 246, 0.3)';
-                }
-              }}
             >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{ flexShrink: 0 }}
-              >
-                <path
-                  d="M21 18v1a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v1h-9a2 2 0 00-2 2v8a2 2 0 002 2h9zm-9-2h10V8H12v8zm4-2.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"
-                  fill="currentColor"
-                />
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                <path d="M21 18v1a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v1h-9a2 2 0 00-2 2v8a2 2 0 002 2h9zm-9-2h10V8H12v8zm4-2.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" fill="currentColor" />
               </svg>
               <span>{isPending ? 'Connecting...' : 'Connect Farcaster Wallet'}</span>
             </button>
@@ -710,7 +736,7 @@ export default function Game() {
           </div>
         </div>
 
-        {mode === 'onchain' && playerExists && (
+        {mode === 'onchain' && playerExists && onchainStats && (
           <div style={{
             marginTop: '1rem',
             padding: '0.8rem 1.2rem',
@@ -719,54 +745,8 @@ export default function Game() {
             fontSize: '0.85rem',
             textAlign: 'center',
             backdropFilter: 'blur(10px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.8rem',
-            flexWrap: 'wrap'
           }}>
-            {isLoadingStats ? (
-              <span>⏳ Loading stats...</span>
-            ) : onchainStats ? (
-              <>
-                <span>🔥 Current Streak: {getStatsValue(onchainStats, 6, 0).toString()} | 🏆 Best Streak: {getStatsValue(onchainStats, 7, 0).toString()}</span>
-                <button
-                  onClick={async () => {
-                    console.log('Manual stats refresh clicked');
-                    try {
-                      await queryClient.invalidateQueries({
-                        predicate: (query) => {
-                          const queryKey = query.queryKey as any[];
-                          return queryKey.some(key => 
-                            typeof key === 'object' && key !== null &&
-                            (key.address === CONTRACT_ADDRESS || key.functionName === 'obtenirStats')
-                          );
-                        }
-                      });
-                      await refetchStats();
-                      console.log('Manual refresh complete');
-                    } catch (e) {
-                      console.error('Manual refresh error:', e);
-                    }
-                  }}
-                  style={{
-                    padding: '0.3rem 0.6rem',
-                    backgroundColor: 'rgba(255,255,255,0.2)',
-                    border: '1px solid rgba(255,255,255,0.3)',
-                    borderRadius: '6px',
-                    color: 'white',
-                    fontSize: '0.75rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  title="Refresh stats"
-                >
-                  🔄
-                </button>
-              </>
-            ) : (
-              <span>No stats available. Try refreshing.</span>
-            )}
+            🔥 Current Streak: {getStatsValue(onchainStats, 6, 0)} | 🏆 Best Streak: {getStatsValue(onchainStats, 7, 0)}
           </div>
         )}
 
